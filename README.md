@@ -1,3 +1,5 @@
+# 🏛️ Amsterdam Municipal Data MCP Server
+
 **Production-ready MCP server with 9 working Amsterdam municipal APIs**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -5,8 +7,6 @@
 [![MCP Protocol](https://img.shields.io/badge/MCP-1.0-green.svg)](https://modelcontextprotocol.io)
 
 Access comprehensive Amsterdam city data including buildings, neighborhoods, cadastral parcels, energy consumption, sustainability initiatives, public reports, waste management, infrastructure, and Dutch vehicle registration through Claude Desktop.
-
----
 
 ## ✅ Working APIs (9 Tools)
 
