@@ -1,8 +1,12 @@
-"""Get Amsterdam waste container locations with client-side distance filtering"""
+"""Get Amsterdam waste container locations
+
+IMPORTANT: Many containers in the API lack geometry data, making spatial 
+searches unreliable. This tool works best for filtering by type only.
+"""
 import os
 import requests
 import math
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 try:
     from pyproj import Transformer
@@ -16,10 +20,7 @@ def wgs84_to_rd(lat: float, lon: float) -> tuple:
     if HAS_PYPROJ:
         x, y = transformer.transform(lon, lat)
         return (x, y)
-    else:
-        x = (lon - 3.31) * 190000
-        y = (lat - 50.46) * 111000
-        return (x, y)
+    return ((lon - 3.31) * 190000, (lat - 50.46) * 111000)
 
 def calculate_distance(x1: float, y1: float, x2: float, y2: float) -> float:
     """Calculate Euclidean distance between two RD points (in meters)"""
@@ -34,17 +35,17 @@ def get_waste_containers(
     """
     Get Amsterdam waste container locations
     
-    Note: API doesn't support spatial queries, so we fetch all containers
-    and filter by distance in Python (limited to first 500 results).
+    WARNING: Most containers in the API lack geometry/coordinate data!
+    Location-based searches may return few or no results even when containers exist.
     
     Args:
         lat: Latitude (WGS84)
-        lon: Longitude (WGS84)
+        lon: Longitude (WGS84)  
         radius: Search radius in meters (default: 500)
         container_type: Filter by type (Rest, Glas, Papier, Textiel, Plastic)
     
     Returns:
-        Dictionary with container data
+        Dictionary with container data (only those with valid coordinates)
     """
     api_key = os.getenv('AMSTERDAM_API_KEY')
     if not api_key:
@@ -52,9 +53,8 @@ def get_waste_containers(
     
     base_url = "https://api.data.amsterdam.nl/v1/huishoudelijkafval/container/"
     headers = {'X-Api-Key': api_key}
-    params = {'_pageSize': 500}  # Fetch more containers for filtering
+    params = {'_pageSize': 500}
     
-    # Filter by container type if specified
     if container_type:
         params['fractieOmschrijving'] = container_type
     
@@ -68,30 +68,29 @@ def get_waste_containers(
         data = response.json()
         
         containers = data.get('_embedded', {}).get('container', [])
+        containers_with_geom = [c for c in containers if c.get('geometry') and c.get('geometry', {}).get('coordinates')]
         
         # Filter by distance if coordinates provided
         filtered_containers = []
         if lat and lon and rd_x and rd_y:
-            for c in containers:
-                geom = c.get('geometry')
-                if geom and geom.get('coordinates'):
-                    cx, cy = geom['coordinates']
-                    distance = calculate_distance(rd_x, rd_y, cx, cy)
-                    if distance <= radius:
-                        filtered_containers.append({
-                            "id": c.get('id'),
-                            "serienummer": c.get('serienummer'),
-                            "fractie": c.get('fractieOmschrijving'),
-                            "eigenaar": c.get('eigenaarNaam'),
-                            "status": c.get('status'),
-                            "datum_creatie": c.get('datumCreatie'),
-                            "geometry": geom,
-                            "distance_m": round(distance, 1)
-                        })
-            # Sort by distance
+            for c in containers_with_geom:
+                geom = c['geometry']
+                cx, cy = geom['coordinates']
+                distance = calculate_distance(rd_x, rd_y, cx, cy)
+                if distance <= radius:
+                    filtered_containers.append({
+                        "id": c.get('id'),
+                        "serienummer": c.get('serienummer'),
+                        "fractie": c.get('fractieOmschrijving'),
+                        "eigenaar": c.get('eigenaarNaam'),
+                        "status": c.get('status'),
+                        "datum_creatie": c.get('datumCreatie'),
+                        "geometry": geom,
+                        "distance_m": round(distance, 1)
+                    })
             filtered_containers.sort(key=lambda x: x['distance_m'])
         else:
-            # No location filter, return all
+            # No location filter, return all with geometry
             filtered_containers = [
                 {
                     "id": c.get('id'),
@@ -102,7 +101,7 @@ def get_waste_containers(
                     "datum_creatie": c.get('datumCreatie'),
                     "geometry": c.get('geometry')
                 }
-                for c in containers
+                for c in containers_with_geom
             ]
         
         return {
@@ -116,9 +115,10 @@ def get_waste_containers(
             "container_type": container_type,
             "containers_found": len(filtered_containers),
             "total_fetched": len(containers),
+            "containers_with_geometry": len(containers_with_geom),
             "results": filtered_containers,
-            "source": "Amsterdam Waste Container API v1 (client-side distance filter)",
-            "note": "API fetches max 500 containers, then filters by distance in Python"
+            "source": "Amsterdam Waste Container API v1",
+            "warning": f"Only {len(containers_with_geom)}/{len(containers)} containers have coordinate data"
         }
     
     except requests.exceptions.RequestException as e:
