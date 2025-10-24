@@ -23,50 +23,69 @@ Access Amsterdam city data for buildings, neighborhoods, waste management, and D
 
 ## 🚀 Quick Start
 
-### 1. Clone Repository
-\`\`\`bash
+### Prerequisites
+- Python 3.9+
+- Free Amsterdam Data API key ([get yours here](https://api.data.amsterdam.nl))
+
+### 1️⃣ Installation
+
+```bash
+# Clone the repository
 git clone https://github.com/TCLUBNL/amsterdam-municipal-mcp-server.git
 cd amsterdam-municipal-mcp-server
-\`\`\`
 
-### 2. Get API Key
-Visit [api.data.amsterdam.nl](https://api.data.amsterdam.nl) and request a free API key.
-
-### 3. Configure
-\`\`\`bash
-cat > .env << 'EOF'
-AMSTERDAM_API_KEY=your_api_key_here
-EOF
-\`\`\`
-
-### 4. Install
-\`\`\`bash
+# Create virtual environment
 python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-\`\`\`
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-### 5. Test
-\`\`\`bash
-python3 -c "from server.tools.get_gebieden import get_gebieden; r = get_gebieden('buurt'); print(f'Found {r[\"count\"]} neighborhoods')"
-\`\`\`
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2️⃣ Configure API Key
+
+Create a `.env` file in the project root:
+
+```bash
+AMSTERDAM_API_KEY=your_api_key_here
+```
+
+> 💡 **Get your free API key:** Visit [api.data.amsterdam.nl](https://api.data.amsterdam.nl) and sign up.
+
+### 3️⃣ Test the Server
+
+```bash
+python3 -c "from server.tools.get_gebieden import get_gebieden; r = get_gebieden('buurt'); print(f'✅ Found {r[\"count\"]} neighborhoods!')"
+```
+
+Expected output: `✅ Found 99 neighborhoods!`
 
 ---
 
-## 🔌 Claude Desktop Setup
+## 🔌 Claude Desktop Integration
 
-Edit config:
-\`\`\`bash
-nano ~/Library/Application\\ Support/Claude/claude_desktop_config.json
-\`\`\`
+### Step 1: Find Your Config File
 
-Add:
-\`\`\`json
+**macOS:**
+```bash
+nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+**Windows:**
+```bash
+notepad %APPDATA%\Claude\claude_desktop_config.json
+```
+
+### Step 2: Add Server Configuration
+
+Replace `/absolute/path/to/` with your actual paths:
+
+```json
 {
   "mcpServers": {
     "amsterdam-municipal": {
       "command": "/absolute/path/to/venv/bin/python",
-      "args": ["/absolute/path/to/mcp_server_simple.py"],
+      "args": ["/absolute/path/to/amsterdam-municipal-mcp-server/mcp_server_simple.py"],
       "env": {
         "PYTHONPATH": "/absolute/path/to/amsterdam-municipal-mcp-server",
         "AMSTERDAM_API_KEY": "your_api_key_here"
@@ -74,30 +93,63 @@ Add:
     }
   }
 }
-\`\`\`
+```
 
-Restart Claude Desktop.
+> 💡 **Tip:** Use `pwd` in your terminal to get the absolute path.
+
+### Step 3: Restart Claude Desktop
+
+Quit Claude Desktop completely and reopen it. You should see the 🔌 icon indicating MCP servers are connected.
+
+### Step 4: Test in Claude
+
+Try these example queries:
+
+- *"How many neighborhoods are in Amsterdam?"*
+- *"Search for addresses on Damrak street"*
+- *"How many Tesla vehicles are registered in Netherlands?"*
+- *"Find waste containers near Central Station"*
 
 ---
 
-## 📡 Tools
+## 📡 Available Tools
 
-1. **search_bag_address** - Amsterdam addresses and buildings
-2. **get_gebieden** - 99 neighborhoods with GeoJSON polygons
-3. **get_waste_containers** - Waste bin locations by coordinates
-4. **get_vehicle_data** - Dutch vehicle registry (entire NL)
+| Tool | Description | Example Use |
+|------|-------------|-------------|
+| `search_bag_address` | Search Amsterdam addresses & buildings | Find specific street addresses |
+| `get_gebieden` | Get neighborhood boundaries with GeoJSON | Analyze city districts |
+| `get_waste_containers` | Locate waste bins by type & location | Find nearest recycling points |
+| `get_vehicle_data` | Dutch vehicle registry (RDW) | Query vehicle registrations nationwide |
 
 ---
 
-## 🔗 Related Servers
+## ⚠️ Known Limitations
 
-- [CBS Statistics MCP](https://github.com/TCLUBNL/cbs-statistics-mcp-server) - Dutch national statistics
-- [Geospatial & Cadastral MCP](https://github.com/TCLUBNL/geospatial-cadastral-mcp-server) - Netherlands geospatial data
+- **Waste Containers:** Most containers in the API lack coordinate data, limiting location-based searches
+- **Rate Limits:** Amsterdam API has standard rate limits; queries are cached where possible
+- **Coverage:** Vehicle data covers all of Netherlands; other tools are Amsterdam-specific
+
+---
+
+## 🔗 Related MCP Servers
+
+- **[CBS Statistics MCP](https://github.com/TCLUBNL/cbs-statistics-mcp-server)** - Dutch national statistics
+- **[Geospatial & Cadastral MCP](https://github.com/TCLUBNL/geospatial-cadastral-mcp-server)** - Netherlands geospatial data
 
 ---
 
 ## 📝 License
 
-MIT License. Amsterdam data under open data license.
+MIT License • Amsterdam data available under [Amsterdam Open Data License](https://data.amsterdam.nl)
 
-**Built by TCLUB NL**
+---
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome! Feel free to contribute improvements or report bugs.
+
+---
+
+**Built with ❤️ by [TCLUB NL](https://github.com/TCLUBNL)**
+
+⭐ **Star this repo** if you find it useful!
