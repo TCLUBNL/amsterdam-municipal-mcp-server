@@ -1,0 +1,13 @@
+{
+  "name": "Amsterdam Municipal Services MCP Server",
+  "version": "1.0.0",
+  "description": "Access to 4 Amsterdam municipal APIs (BAG, Gebieden, Waste, RDW)",
+  "tools": [
+    "server/tools/search_bag_address.py",
+    "server/tools/get_gebieden.py",
+    "server/tools/get_waste_containers.py",
+    "server/tools/get_vehicle_data.py"
+  ],
+  "resources": [],
+  "prompts": []
+}
