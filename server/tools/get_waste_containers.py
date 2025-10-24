@@ -1,26 +1,29 @@
-"""Get Amsterdam waste container locations"""
+"""Get Amsterdam waste container locations with client-side distance filtering"""
 import os
 import requests
-from typing import Optional, Dict, Any
+import math
+from typing import Optional, Dict, Any, List
 
 try:
     from pyproj import Transformer
-    # Create transformer from WGS84 to RD New (EPSG:28992)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:28992", always_xy=True)
     HAS_PYPROJ = True
 except ImportError:
     HAS_PYPROJ = False
 
 def wgs84_to_rd(lat: float, lon: float) -> tuple:
-    """Convert WGS84 (GPS) to RD New (Dutch grid) coordinates"""
+    """Convert WGS84 to RD New coordinates"""
     if HAS_PYPROJ:
         x, y = transformer.transform(lon, lat)
         return (x, y)
     else:
-        # Fallback approximation for Amsterdam
         x = (lon - 3.31) * 190000
         y = (lat - 50.46) * 111000
         return (x, y)
+
+def calculate_distance(x1: float, y1: float, x2: float, y2: float) -> float:
+    """Calculate Euclidean distance between two RD points (in meters)"""
+    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
 def get_waste_containers(
     lat: Optional[float] = None,
@@ -31,9 +34,12 @@ def get_waste_containers(
     """
     Get Amsterdam waste container locations
     
+    Note: API doesn't support spatial queries, so we fetch all containers
+    and filter by distance in Python (limited to first 500 results).
+    
     Args:
-        lat: Latitude (WGS84) - converted to RD automatically
-        lon: Longitude (WGS84) - converted to RD automatically
+        lat: Latitude (WGS84)
+        lon: Longitude (WGS84)
         radius: Search radius in meters (default: 500)
         container_type: Filter by type (Rest, Glas, Papier, Textiel, Plastic)
     
@@ -46,18 +52,15 @@ def get_waste_containers(
     
     base_url = "https://api.data.amsterdam.nl/v1/huishoudelijkafval/container/"
     headers = {'X-Api-Key': api_key}
-    params = {'_pageSize': 100}
+    params = {'_pageSize': 500}  # Fetch more containers for filtering
+    
+    # Filter by container type if specified
+    if container_type:
+        params['fractieOmschrijving'] = container_type
     
     rd_x, rd_y = None, None
-    
-    # Convert WGS84 to RD if coordinates provided
     if lat and lon:
         rd_x, rd_y = wgs84_to_rd(lat, lon)
-        params['location'] = f'{rd_x},{rd_y}'
-        params['radius'] = radius
-    
-    if container_type:
-        params['fractie'] = container_type
     
     try:
         response = requests.get(base_url, headers=headers, params=params, timeout=30)
@@ -66,17 +69,30 @@ def get_waste_containers(
         
         containers = data.get('_embedded', {}).get('container', [])
         
-        return {
-            "location": {
-                "lat": lat, 
-                "lon": lon, 
-                "rd_x": round(rd_x, 2) if rd_x else None, 
-                "rd_y": round(rd_y, 2) if rd_y else None
-            } if lat and lon else None,
-            "radius_m": radius if lat and lon else None,
-            "container_type": container_type,
-            "containers_found": len(containers),
-            "results": [
+        # Filter by distance if coordinates provided
+        filtered_containers = []
+        if lat and lon and rd_x and rd_y:
+            for c in containers:
+                geom = c.get('geometry')
+                if geom and geom.get('coordinates'):
+                    cx, cy = geom['coordinates']
+                    distance = calculate_distance(rd_x, rd_y, cx, cy)
+                    if distance <= radius:
+                        filtered_containers.append({
+                            "id": c.get('id'),
+                            "serienummer": c.get('serienummer'),
+                            "fractie": c.get('fractieOmschrijving'),
+                            "eigenaar": c.get('eigenaarNaam'),
+                            "status": c.get('status'),
+                            "datum_creatie": c.get('datumCreatie'),
+                            "geometry": geom,
+                            "distance_m": round(distance, 1)
+                        })
+            # Sort by distance
+            filtered_containers.sort(key=lambda x: x['distance_m'])
+        else:
+            # No location filter, return all
+            filtered_containers = [
                 {
                     "id": c.get('id'),
                     "serienummer": c.get('serienummer'),
@@ -87,13 +103,26 @@ def get_waste_containers(
                     "geometry": c.get('geometry')
                 }
                 for c in containers
-            ],
-            "source": "Amsterdam Waste Container API v1 (Authenticated)",
-            "coordinate_system": "RD New (EPSG:28992)" if rd_x else "None"
+            ]
+        
+        return {
+            "location": {
+                "lat": lat, 
+                "lon": lon, 
+                "rd_x": round(rd_x, 2) if rd_x else None, 
+                "rd_y": round(rd_y, 2) if rd_y else None
+            } if lat and lon else None,
+            "radius_m": radius if lat and lon else None,
+            "container_type": container_type,
+            "containers_found": len(filtered_containers),
+            "total_fetched": len(containers),
+            "results": filtered_containers,
+            "source": "Amsterdam Waste Container API v1 (client-side distance filter)",
+            "note": "API fetches max 500 containers, then filters by distance in Python"
         }
     
     except requests.exceptions.RequestException as e:
         return {
             "error": f"Failed to fetch waste container data: {e}",
-            "location": {"lat": lat, "lon": lon, "rd_x": rd_x, "rd_y": rd_y} if lat and lon else None
+            "location": {"lat": lat, "lon": lon} if lat and lon else None
         }
